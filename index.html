@@ -104,6 +104,13 @@
       .row > .col { min-width: 100%; }
       .actions button { flex: 1; }
     }
+  
+    /* Per-station priority buttons */
+    .prioRow{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+    .prioBtn{border:1px solid var(--border);background:var(--card);padding:6px 10px;border-radius:999px;font-size:12px;line-height:1;cursor:pointer;display:inline-flex;align-items:center}
+    .prioBtn .tick{margin-left:6px;opacity:0}
+    .prioBtn.active{border-color:var(--primary)}
+    .prioBtn.active .tick{opacity:1}
   </style>
 </head>
 <body>
