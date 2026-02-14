@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Closing MVP</title>
+  <style>
+    body { font-family: system-ui, Arial; margin: 0; padding: 16px; max-width: 700px; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+    label { display:block; margin: 10px 0 6px; font-size: 14px; }
+    input, textarea { width: 100%; padding: 10px; font-size: 14px; }
+    button { padding: 10px 12px; margin-right: 8px; margin-top: 10px; }
+    pre { white-space: pre-wrap; background:#f6f6f6; padding:10px; border-radius:10px; }
+    .row { display:flex; gap:10px; }
+    .row > div { flex:1; }
+  </style>
+</head>
+<body>
+  <h2>Geek Squad Closing (MVP)</h2>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>Date</label>
+        <input id="date" type="date" />
+      </div>
+      <div>
+        <label>Units on bench</label>
+        <input id="units" type="number" min="0" placeholder="e.g., 4" />
+      </div>
+    </div>
+
+    <label>Closer name</label>
+    <input id="closer" type="text" placeholder="Your name" />
+
+    <label>Notes (free text)</label>
+    <textarea id="notes" rows="4" placeholder="Quick closing notes..."></textarea>
+
+    <button id="copyBtn" type="button">Copy Summary</button>
+    <button id="saveBtn" type="button">Save</button>
+  </div>
+
+  <div class="card">
+    <button id="refreshBtn" type="button">Refresh History</button>
+    <div id="history"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
