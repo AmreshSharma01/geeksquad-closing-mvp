@@ -1,48 +1,72 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Closing MVP</title>
+  <title>Geek Squad Closing (MVP)</title>
   <style>
-    body { font-family: system-ui, Arial; margin: 0; padding: 16px; max-width: 700px; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+    body { font-family: system-ui, Arial, sans-serif; margin: 0; padding: 16px; max-width: 900px; }
+    h2 { margin: 0 0 10px; }
+    .sub { margin: 0 0 14px; opacity: .75; font-size: 13px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 12px; margin-bottom: 12px; }
     label { display:block; margin: 10px 0 6px; font-size: 14px; }
-    input, textarea { width: 100%; padding: 10px; font-size: 14px; }
-    button { padding: 10px 12px; margin-right: 8px; margin-top: 10px; }
-    pre { white-space: pre-wrap; background:#f6f6f6; padding:10px; border-radius:10px; }
-    .row { display:flex; gap:10px; }
-    .row > div { flex:1; }
+    input, textarea { width: 100%; padding: 10px; font-size: 14px; box-sizing: border-box; }
+    textarea { resize: vertical; }
+    .row { display:flex; gap:12px; flex-wrap: wrap; }
+    .row > .col { flex: 1; min-width: 220px; }
+    button { padding: 10px 12px; margin-right: 8px; margin-top: 10px; cursor: pointer; }
+    .btnPrimary { background: #2563eb; color: white; border: 0; border-radius: 10px; }
+    .btnSuccess { background: #16a34a; color: white; border: 0; border-radius: 10px; }
+    .btnGhost { background: transparent; border: 1px solid #ddd; border-radius: 10px; }
+    #stations { margin-top: 8px; }
+    pre { margin: 0; }
+    .footer { opacity: .6; font-size: 12px; margin-top: 18px; }
   </style>
 </head>
 <body>
+
   <h2>Geek Squad Closing (MVP)</h2>
+  <p class="sub">Free workflow test (GitHub Pages + Google Sheets). Stores workstation notes (Alpha → K) + optional photos.</p>
 
   <div class="card">
     <div class="row">
-      <div>
-        <label>Date</label>
+      <div class="col">
+        <label for="date">Date</label>
         <input id="date" type="date" />
       </div>
-      <div>
-        <label>Units on bench</label>
+
+      <div class="col">
+        <label for="units">Units on bench</label>
         <input id="units" type="number" min="0" placeholder="e.g., 4" />
       </div>
     </div>
 
-    <label>Closer name</label>
+    <label for="closer">Closer name</label>
     <input id="closer" type="text" placeholder="Your name" />
 
-    <label>Notes (free text)</label>
-    <textarea id="notes" rows="4" placeholder="Quick closing notes..."></textarea>
+    <label for="handoff">Handoff notes</label>
+    <textarea id="handoff" rows="3" placeholder="Anything for tomorrow / next shift..."></textarea>
 
-    <button id="copyBtn" type="button">Copy Summary</button>
-    <button id="saveBtn" type="button">Save</button>
+    <div class="row" style="align-items:center;">
+      <button id="copyBtn" class="btnPrimary" type="button">Copy Summary</button>
+      <button id="saveBtn" class="btnSuccess" type="button">Save</button>
+      <button id="refreshBtn" class="btnGhost" type="button">Refresh History</button>
+    </div>
   </div>
 
   <div class="card">
-    <button id="refreshBtn" type="button">Refresh History</button>
-    <div id="history"></div>
+    <h3 style="margin:0 0 8px;">Workstations (Alpha → K)</h3>
+    <p class="sub" style="margin-top:0;">Add notes and optionally attach 1 photo per workstation (keep photos ≤ 2MB).</p>
+    <div id="stations"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 8px;">History (latest 5)</h3>
+    <div id="history">Loading...</div>
+  </div>
+
+  <div class="footer">
+    Tip: Avoid photos with any customer information (names, phone numbers, service order sheets, serial numbers).
   </div>
 
   <script src="app.js"></script>
