@@ -11,11 +11,16 @@ const STATIONS = [
   "Foxtrot", "Golf", "Hotel", "India", "Juliet", "Kilo"
 ];
 
-// Only show latest N logs to keep UI fast
+// History defaults
 const HISTORY_LIMIT = 5;
 
-// Photo size limit (base64 + Apps Script are happier with small images)
-const MAX_PHOTO_BYTES = 2 * 1024 * 1024; // 2MB
+// Image compression defaults (client-side)
+const COMPRESS_MAX_DIM = 1600;        // max width/height in px
+const COMPRESS_QUALITY = 0.75;        // jpeg quality 0..1
+const COMPRESS_OUTPUT_MIME = "image/jpeg";
+
+// Safety cap after compression (Apps Script + base64 payloads can choke on large images)
+const MAX_PHOTO_BYTES = 900 * 1024;   // ~900KB
 
 /*************************************************
  * HELPERS
@@ -47,27 +52,106 @@ function safeParseJSON(v, fallback) {
   }
 }
 
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result; // data:image/png;base64,XXXX
-      const base64 = String(dataUrl).split(",")[1];
-      resolve({
-        base64,
-        mimeType: file.type,
-        name: file.name
-      });
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+function setStatus(text) {
+  const st = el("statusText");
+  if (st) st.textContent = text || "";
 }
 
 function formatTimestamp(ts) {
   if (!ts) return "";
   // ts is ISO like 2026-02-14T...
   return String(ts).replace("T", " ").slice(0, 16);
+}
+
+function priorityClass(p) {
+  const v = String(p || "").toLowerCase();
+  if (v === "high") return "pillHigh";
+  if (v === "low") return "pillLow";
+  return "pillMedium";
+}
+
+/*************************************************
+ * IMAGE COMPRESSION
+ *************************************************/
+
+function fileToImage_(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = (e) => {
+      URL.revokeObjectURL(url);
+      reject(e);
+    };
+    img.src = url;
+  });
+}
+
+function canvasToBlob_(canvas, mime, quality) {
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), mime, quality);
+  });
+}
+
+/**
+ * Compress an image file using a canvas resize + jpeg encode.
+ * Returns { base64, mimeType, name, bytes, width, height }.
+ */
+async function compressImage(file) {
+  const img = await fileToImage_(file);
+
+  const w0 = img.naturalWidth || img.width;
+  const h0 = img.naturalHeight || img.height;
+
+  const scale = Math.min(1, COMPRESS_MAX_DIM / Math.max(w0, h0));
+  const w = Math.max(1, Math.round(w0 * scale));
+  const h = Math.max(1, Math.round(h0 * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, w, h);
+
+  // First pass
+  let blob = await canvasToBlob_(canvas, COMPRESS_OUTPUT_MIME, COMPRESS_QUALITY);
+
+  // If still too big, try progressively lower quality (fast + simple)
+  let q = COMPRESS_QUALITY;
+  while (blob && blob.size > MAX_PHOTO_BYTES && q > 0.45) {
+    q = Math.max(0.45, q - 0.10);
+    blob = await canvasToBlob_(canvas, COMPRESS_OUTPUT_MIME, q);
+  }
+
+  if (!blob) throw new Error("Image compression failed");
+
+  // Convert blob to base64
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      resolve(String(dataUrl).split(",")[1]);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
+  // Preserve original filename stem, but change extension for jpeg
+  const stem = (file.name || "photo").replace(/\.[^/.]+$/, "");
+  const name = `${stem}.jpg`;
+
+  return {
+    base64,
+    mimeType: COMPRESS_OUTPUT_MIME,
+    name,
+    bytes: blob.size,
+    width: w,
+    height: h
+  };
 }
 
 /*************************************************
@@ -79,37 +163,36 @@ function renderStations() {
   if (!wrap) return;
 
   wrap.innerHTML = STATIONS.map((s) => `
-    <div class="stationCard" style="border:1px solid #eee; padding:10px; border-radius:10px; margin:10px 0;">
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-        <b>${escapeHtml(s)}</b>
-        <small id="photoHint_${escapeHtml(s)}" style="opacity:.7;"></small>
+    <div class="stationCard">
+      <div class="stationTop">
+        <div class="stationKey">${escapeHtml(s)}</div>
+        <small id="photoHint_${escapeHtml(s)}" class="hint"></small>
       </div>
 
-      <div style="margin-top:8px;">
-        <input id="notes_${escapeHtml(s)}" placeholder="Notes for ${escapeHtml(s)}"
-               style="width:100%; padding:10px; font-size:14px;" />
+      <div style="margin-top:10px;">
+        <input id="notes_${escapeHtml(s)}" placeholder="Notes for ${escapeHtml(s)}" />
       </div>
 
-      <div style="margin-top:8px;">
+      <div style="margin-top:10px;">
         <input id="photo_${escapeHtml(s)}" type="file" accept="image/*" />
       </div>
     </div>
   `).join("");
 
-  // show size hint when a file is selected
+  // Show compression hint when a file is selected
   for (const s of STATIONS) {
     const input = el(`photo_${s}`);
     const hint = el(`photoHint_${s}`);
     if (!input || !hint) continue;
 
-    input.addEventListener("change", () => {
+    input.addEventListener("change", async () => {
       const f = input.files?.[0];
       if (!f) {
         hint.textContent = "";
         return;
       }
       const mb = (f.size / (1024 * 1024)).toFixed(2);
-      hint.textContent = `${mb} MB`;
+      hint.textContent = `Original: ${mb} MB (auto-compress on Save)`;
     });
   }
 }
@@ -136,19 +219,23 @@ function renderHistory(logs) {
       : "(no workstation updates)";
 
     const body =
-`Units on bench: ${l.units_on_bench || "-"}
+`Priority: ${l.priority || "Medium"}
+Units on bench: ${l.units_on_bench || "-"}
 Handoff: ${l.handoff_notes || "-"}
 
 Workstations:
 ${stationsText}`;
 
     return `
-      <div style="margin:10px 0; padding:10px; border:1px solid #eee; border-radius:10px;">
-        <div style="display:flex; justify-content:space-between; gap:10px;">
-          <div><b>${escapeHtml(l.date || "")}</b> (${escapeHtml(l.closer || "")})</div>
+      <div style="margin:10px 0; padding:12px; border:1px solid #e5e7eb; border-radius:14px; background:#fff;">
+        <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div><b>${escapeHtml(l.date || "")}</b> (${escapeHtml(l.closer || "")})</div>
+            <span class="pill ${priorityClass(l.priority)}">${escapeHtml(l.priority || "Medium")}</span>
+          </div>
           <div style="opacity:.7; font-size:12px;">${escapeHtml(formatTimestamp(l.timestamp))}</div>
         </div>
-        <pre style="white-space:pre-wrap; background:#f6f6f6; padding:10px; border-radius:10px; margin-top:8px;">${escapeHtml(body)}</pre>
+        <pre style="white-space:pre-wrap; background:#f1f5f9; padding:12px; border-radius:12px; margin-top:10px;">${escapeHtml(body)}</pre>
       </div>
     `;
   }).join("");
@@ -162,42 +249,50 @@ function getBasicData() {
   return {
     date: el("date")?.value || todayISO(),
     closer: (el("closer")?.value || "").trim(),
+    priority: el("priority")?.value || "Medium",
     units_on_bench: Number(el("units")?.value || 0),
     handoff_notes: (el("handoff")?.value || "").trim()
   };
 }
 
 async function buildStationsPayload() {
-  const stations = [];
+  // Build tasks first so compression runs in parallel (faster)
+  const tasks = [];
 
   for (const s of STATIONS) {
     const notes = (el(`notes_${s}`)?.value || "").trim();
     const fileInput = el(`photo_${s}`);
     const file = fileInput?.files?.[0];
 
-    // Only include station if it has notes or photo
     if (!notes && !file) continue;
 
-    const st = { key: s, notes };
+    tasks.push((async () => {
+      const st = { key: s, notes };
 
-    if (file) {
-      if (file.size > MAX_PHOTO_BYTES) {
-        alert(`${s} photo is too large. Please upload <= 2MB.`);
-        throw new Error("Photo too large");
+      if (file) {
+        // compress on the client to speed up upload + reduce Apps Script failures
+        const compressed = await compressImage(file);
+        st.photo = { base64: compressed.base64, mimeType: compressed.mimeType, name: compressed.name };
+
+        const hint = el(`photoHint_${s}`);
+        if (hint) {
+          const kb = Math.round(compressed.bytes / 1024);
+          hint.textContent = `Compressed: ~${kb} KB (${compressed.width}×${compressed.height})`;
+        }
       }
-      st.photo = await fileToBase64(file);
-    }
 
-    stations.push(st);
+      return st;
+    })());
   }
 
-  return stations;
+  return Promise.all(tasks);
 }
 
 function buildCopySummary(basic, stations) {
   const lines = [];
   lines.push(`Closing ${basic.date}`);
   lines.push(`Closer: ${basic.closer || "-"}`);
+  lines.push(`Priority: ${basic.priority || "Medium"}`);
   lines.push(`Units on bench: ${basic.units_on_bench}`);
 
   if (stations.length) {
@@ -221,6 +316,8 @@ function buildCopySummary(basic, stations) {
  * API CALLS
  *************************************************/
 
+let historyMode = "latest"; // "latest" | "all"
+
 async function saveLog() {
   const basic = getBasicData();
   if (!basic.closer) {
@@ -229,16 +326,17 @@ async function saveLog() {
   }
 
   const saveBtn = el("saveBtn");
+  const refreshBtn = el("refreshBtn");
   if (saveBtn) saveBtn.disabled = true;
+  if (refreshBtn) refreshBtn.disabled = true;
+  setStatus("Saving... compressing photos if needed.");
 
   try {
     const stations = await buildStationsPayload();
 
-    const payload = {
-      ...basic,
-      stations
-    };
+    const payload = { ...basic, stations };
 
+    setStatus("Uploading...");
     const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -251,14 +349,15 @@ async function saveLog() {
       return;
     }
 
-    alert("Saved!");
+    setStatus("Saved. Refreshing history...");
     await loadHistory();
+    alert("Saved!");
   } catch (err) {
-    // If we throw for photo size etc.
-    if (String(err).includes("Photo too large")) return;
     alert("Save failed: " + String(err));
   } finally {
+    setStatus("");
     if (saveBtn) saveBtn.disabled = false;
+    if (refreshBtn) refreshBtn.disabled = false;
   }
 }
 
@@ -266,7 +365,11 @@ async function loadHistory() {
   const history = el("history");
   if (history) history.innerHTML = "Loading...";
 
-  const res = await fetch(API_URL);
+  const url = historyMode === "latest"
+    ? `${API_URL}?limit=${encodeURIComponent(HISTORY_LIMIT)}`
+    : API_URL;
+
+  const res = await fetch(url);
   const json = await res.json().catch(() => ({}));
 
   if (!res.ok || !json.ok) {
@@ -275,14 +378,22 @@ async function loadHistory() {
   }
 
   const logs = Array.isArray(json.logs) ? json.logs : [];
-
-  // Show only latest 5
-  renderHistory(logs.slice(0, HISTORY_LIMIT));
+  renderHistory(historyMode === "latest" ? logs.slice(0, HISTORY_LIMIT) : logs);
 }
 
 /*************************************************
  * INIT
  *************************************************/
+
+function setHistoryMode(mode) {
+  historyMode = mode;
+
+  const latestBtn = el("histLatestBtn");
+  const allBtn = el("histAllBtn");
+
+  latestBtn?.classList.toggle("active", mode === "latest");
+  allBtn?.classList.toggle("active", mode === "all");
+}
 
 document.addEventListener("DOMContentLoaded", async () => {
   if (el("date")) el("date").value = todayISO();
@@ -292,17 +403,33 @@ document.addEventListener("DOMContentLoaded", async () => {
   el("saveBtn")?.addEventListener("click", saveLog);
   el("refreshBtn")?.addEventListener("click", loadHistory);
 
+  el("histLatestBtn")?.addEventListener("click", async () => {
+    setHistoryMode("latest");
+    await loadHistory();
+  });
+
+  el("histAllBtn")?.addEventListener("click", async () => {
+    setHistoryMode("all");
+    await loadHistory();
+  });
+
   el("copyBtn")?.addEventListener("click", async () => {
     const basic = getBasicData();
     if (!basic.closer) {
       alert("Enter closer name before copying.");
       return;
     }
-    const stations = await buildStationsPayload();
-    const text = buildCopySummary(basic, stations);
-    await navigator.clipboard.writeText(text);
-    alert("Copied!");
+    setStatus("Preparing summary...");
+    try {
+      const stations = await buildStationsPayload();
+      const text = buildCopySummary(basic, stations);
+      await navigator.clipboard.writeText(text);
+      alert("Copied!");
+    } finally {
+      setStatus("");
+    }
   });
 
+  setHistoryMode("latest");
   await loadHistory();
 });
