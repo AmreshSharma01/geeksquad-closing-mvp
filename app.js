@@ -1,8 +1,8 @@
 // Paste your Apps Script Web App URL here:
-const API_URL = "PASTE_WEB_APP_URL_HERE";
+const API_URL = "https://script.google.com/macros/s/AKfycbwBy8XpmAhIlyWGXLmjUV7HjNKJ8xtGsPNXV4VXzXXzpFPfwtGG1lus5s3G5WjKmvBTHA/exec";
 
 // Must match SHARED_TOKEN in Apps Script:
-const TOKEN = "PASTE_SAME_TOKEN_HERE";
+const TOKEN = "GeekSquad_2026_Aks_MVP";
 
 const el = (id) => document.getElementById(id);
 
