@@ -5,70 +5,173 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Geek Squad Closing (MVP)</title>
   <style>
-    body { font-family: system-ui, Arial, sans-serif; margin: 0; padding: 16px; max-width: 900px; }
-    h2 { margin: 0 0 10px; }
-    .sub { margin: 0 0 14px; opacity: .75; font-size: 13px; }
-    .card { border: 1px solid #ddd; border-radius: 12px; padding: 12px; margin-bottom: 12px; }
-    label { display:block; margin: 10px 0 6px; font-size: 14px; }
-    input, textarea { width: 100%; padding: 10px; font-size: 14px; box-sizing: border-box; }
-    textarea { resize: vertical; }
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #e5e7eb;
+      --text: #0f172a;
+      --muted: #64748b;
+      --primary: #2563eb;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .container { max-width: 980px; margin: 0 auto; }
+
+    h2 { margin: 0 0 8px; font-size: 20px; }
+    h3 { margin: 0 0 8px; font-size: 16px; }
+    .sub { margin: 0 0 14px; color: var(--muted); font-size: 13px; line-height: 1.35; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    label { display:block; margin: 10px 0 6px; font-size: 13px; color: var(--muted); }
+    input, textarea, select {
+      width: 100%;
+      padding: 12px;
+      font-size: 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      outline: none;
+    }
+    textarea { resize: vertical; min-height: 92px; }
+    input:focus, textarea:focus, select:focus { border-color: rgba(37, 99, 235, .6); }
+
     .row { display:flex; gap:12px; flex-wrap: wrap; }
     .row > .col { flex: 1; min-width: 220px; }
-    button { padding: 10px 12px; margin-right: 8px; margin-top: 10px; cursor: pointer; }
-    .btnPrimary { background: #2563eb; color: white; border: 0; border-radius: 10px; }
-    .btnSuccess { background: #16a34a; color: white; border: 0; border-radius: 10px; }
-    .btnGhost { background: transparent; border: 1px solid #ddd; border-radius: 10px; }
-    #stations { margin-top: 8px; }
+
+    .actions { display:flex; gap:10px; flex-wrap: wrap; align-items: center; }
+    button {
+      padding: 12px 14px;
+      cursor: pointer;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      font-weight: 600;
+      font-size: 14px;
+      line-height: 1;
+      min-height: 44px;
+    }
+    .btnPrimary { background: var(--primary); color: #fff; }
+    .btnSuccess { background: var(--success); color: #fff; }
+    .btnGhost { background: transparent; border-color: var(--border); color: var(--text); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+
+    .pill {
+      display:inline-flex; align-items:center; gap:6px;
+      padding: 5px 10px; border-radius: 999px;
+      font-size: 12px; font-weight: 700;
+      border: 1px solid var(--border);
+      background: #f1f5f9;
+      color: var(--text);
+    }
+    .pillHigh { background: rgba(220, 38, 38, .10); border-color: rgba(220, 38, 38, .25); color: #991b1b; }
+    .pillMedium { background: rgba(245, 158, 11, .12); border-color: rgba(245, 158, 11, .28); color: #92400e; }
+    .pillLow { background: rgba(22, 163, 74, .12); border-color: rgba(22, 163, 74, .28); color: #166534; }
+
+    #stations { margin-top: 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .stationCard { border: 1px solid var(--border); padding: 12px; border-radius: 14px; background: #fff; }
+    .stationTop { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .stationKey { font-weight: 800; }
+    .hint { color: var(--muted); font-size: 12px; }
+
+    .historyControls { display:flex; gap:8px; flex-wrap: wrap; align-items:center; margin-bottom: 8px; }
+    .segBtn { padding: 10px 12px; border-radius: 999px; border: 1px solid var(--border); background: #fff; font-weight: 700; }
+    .segBtn.active { border-color: rgba(37, 99, 235, .5); background: rgba(37, 99, 235, .08); }
+
     pre { margin: 0; }
-    .footer { opacity: .6; font-size: 12px; margin-top: 18px; }
+    .footer { color: var(--muted); font-size: 12px; margin-top: 14px; line-height: 1.35; }
+
+    @media (max-width: 720px) {
+      body { padding: 12px; }
+      #stations { grid-template-columns: 1fr; }
+      .row > .col { min-width: 100%; }
+      .actions button { flex: 1; }
+    }
   </style>
 </head>
 <body>
+  <div class="container">
+    <h2>Geek Squad Closing (MVP)</h2>
+    <p class="sub">Free workflow test (GitHub Pages + Google Sheets). Stores workstation notes (Alpha → K) + optional photos.</p>
 
-  <h2>Geek Squad Closing (MVP)</h2>
-  <p class="sub">Free workflow test (GitHub Pages + Google Sheets). Stores workstation notes (Alpha → K) + optional photos.</p>
+    <div class="card">
+      <div class="row">
+        <div class="col">
+          <label for="date">Date</label>
+          <input id="date" type="date" />
+        </div>
 
-  <div class="card">
-    <div class="row">
-      <div class="col">
-        <label for="date">Date</label>
-        <input id="date" type="date" />
+        <div class="col">
+          <label for="units">Units on bench</label>
+          <input id="units" type="number" min="0" placeholder="e.g., 4" />
+        </div>
+
+        <div class="col">
+          <label for="priority">Priority</label>
+          <select id="priority">
+            <option value="High">High</option>
+            <option value="Medium" selected>Medium</option>
+            <option value="Low">Low</option>
+          </select>
+        </div>
       </div>
 
-      <div class="col">
-        <label for="units">Units on bench</label>
-        <input id="units" type="number" min="0" placeholder="e.g., 4" />
+      <label for="closer">Closer name</label>
+      <input id="closer" type="text" placeholder="Your name" />
+
+      <label for="handoff">Handoff notes</label>
+      <textarea id="handoff" rows="3" placeholder="Anything for tomorrow / next shift..."></textarea>
+
+      <div class="actions">
+        <button id="copyBtn" class="btnPrimary" type="button">Copy Summary</button>
+        <button id="saveBtn" class="btnSuccess" type="button">Save</button>
+        <button id="refreshBtn" class="btnGhost" type="button">Refresh History</button>
+        <span id="statusText" class="hint" aria-live="polite"></span>
       </div>
     </div>
 
-    <label for="closer">Closer name</label>
-    <input id="closer" type="text" placeholder="Your name" />
-
-    <label for="handoff">Handoff notes</label>
-    <textarea id="handoff" rows="3" placeholder="Anything for tomorrow / next shift..."></textarea>
-
-    <div class="row" style="align-items:center;">
-      <button id="copyBtn" class="btnPrimary" type="button">Copy Summary</button>
-      <button id="saveBtn" class="btnSuccess" type="button">Save</button>
-      <button id="refreshBtn" class="btnGhost" type="button">Refresh History</button>
+    <div class="card">
+      <h3>Workstations (Alpha → K)</h3>
+      <p class="sub" style="margin-top:0;">Add notes and optionally attach 1 photo per workstation. Photos are auto-compressed before upload.</p>
+      <div id="stations"></div>
     </div>
-  </div>
 
-  <div class="card">
-    <h3 style="margin:0 0 8px;">Workstations (Alpha → K)</h3>
-    <p class="sub" style="margin-top:0;">Add notes and optionally attach 1 photo per workstation (keep photos ≤ 2MB).</p>
-    <div id="stations"></div>
-  </div>
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+        <div>
+          <h3 style="margin-bottom:4px;">History</h3>
+          <div class="sub" style="margin:0;">Toggle between latest 5 and full history.</div>
+        </div>
+        <div class="historyControls" role="group" aria-label="History filter">
+          <button id="histLatestBtn" class="segBtn active" type="button">Latest 5</button>
+          <button id="histAllBtn" class="segBtn" type="button">All</button>
+        </div>
+      </div>
+      <div id="history">Loading...</div>
+    </div>
 
-  <div class="card">
-    <h3 style="margin:0 0 8px;">History (latest 5)</h3>
-    <div id="history">Loading...</div>
-  </div>
+    <div class="footer">
+      Tip: Avoid photos with any customer information (names, phone numbers, service order sheets, serial numbers).
+    </div>
 
-  <div class="footer">
-    Tip: Avoid photos with any customer information (names, phone numbers, service order sheets, serial numbers).
+    <script src="app.js"></script>
   </div>
-
-  <script src="app.js"></script>
 </body>
 </html>
