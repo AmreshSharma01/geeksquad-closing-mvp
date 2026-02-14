@@ -14,6 +14,10 @@ const STATIONS = [
 // History defaults
 const HISTORY_LIMIT = 5;
 
+// Per-station priority (High/Medium/Low)
+const PRIORITY_VALUES = ["High", "Medium", "Low"];
+let stationPriority = Object.fromEntries(STATIONS.map(s => [s, "Medium"]));
+
 // Image compression defaults (client-side)
 const COMPRESS_MAX_DIM = 1600;        // max width/height in px
 const COMPRESS_QUALITY = 0.75;        // jpeg quality 0..1
@@ -169,6 +173,15 @@ function renderStations() {
         <small id="photoHint_${escapeHtml(s)}" class="hint"></small>
       </div>
 
+      <div class="prioRow" role="group" aria-label="Priority">
+        ${PRIORITY_VALUES.map(p => {
+          const short = p === "High" ? "HP" : (p === "Medium" ? "MP" : "LP");
+          const active = (stationPriority[s] || "Medium") === p ? "active" : "";
+          return `<button type="button" class="prioBtn ${active}" data-station="${escapeHtml(s)}" data-value="${p}">${short}<span class="tick">✓</span></button>`;
+        }).join("")}
+        <input type="hidden" id="prio_${escapeHtml(s)}" value="${escapeHtml(stationPriority[s] || "Medium")}" />
+      </div>
+
       <div style="margin-top:10px;">
         <input id="notes_${escapeHtml(s)}" placeholder="Notes for ${escapeHtml(s)}" />
       </div>
@@ -195,6 +208,43 @@ function renderStations() {
       hint.textContent = `Original: ${mb} MB (auto-compress on Save)`;
     });
   }
+
+
+  // Priority toggle
+  wrap.querySelectorAll(".prioBtn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const station = btn.getAttribute("data-station");
+      const value = btn.getAttribute("data-value");
+      if (!station || !value) return;
+
+      stationPriority[station] = value;
+      const hidden = el(`prio_${station}`);
+      if (hidden) hidden.value = value;
+
+      // Update active UI in this station row
+      wrap.querySelectorAll(`.prioBtn[data-station="${station}"]`).forEach((b) => {
+        b.classList.toggle("active", b.getAttribute("data-value") === value);
+      });
+    });
+  });
+
+  // Priority toggle (HP/MP/LP)
+  wrap.querySelectorAll(".prioBtn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const station = btn.getAttribute("data-station");
+      const value = btn.getAttribute("data-value");
+      if (!station || !value) return;
+
+      stationPriority[station] = value;
+      const hidden = el(`prio_${station}`);
+      if (hidden) hidden.value = value;
+
+      wrap.querySelectorAll(`.prioBtn[data-station="${station}"]`).forEach((b) => {
+        b.classList.toggle("active", b.getAttribute("data-value") === value);
+      });
+    });
+  });
+
 }
 
 function renderHistory(logs) {
@@ -212,9 +262,10 @@ function renderHistory(logs) {
       ? stations.map(st => {
           const key = st.key || "";
           const notes = st.notes || "";
+          const pr = st.priority || "Medium";
           const photoUrl = st.photoUrl || "";
           const photoLine = photoUrl ? `\nPhoto: ${photoUrl}` : "";
-          return `${key}: ${notes || "(no notes)"}${photoLine}`;
+          return `${key} [${pr}]: ${notes || "(no notes)"}${photoLine}`;
         }).join("\n\n")
       : "(no workstation updates)";
 
@@ -267,7 +318,7 @@ async function buildStationsPayload() {
     if (!notes && !file) continue;
 
     tasks.push((async () => {
-      const st = { key: s, notes };
+      const st = { key: s, notes, priority: (el(`prio_${s}`)?.value || stationPriority[s] || "Medium") };
 
       if (file) {
         // compress on the client to speed up upload + reduce Apps Script failures
@@ -331,12 +382,12 @@ async function saveLog() {
   if (refreshBtn) refreshBtn.disabled = true;
   setStatus("Saving... compressing photos if needed.");
 
+  let completed = false;
   try {
     const stations = await buildStationsPayload();
-
     const payload = { ...basic, stations };
 
-    setStatus("Uploading...");
+    setStatus("Saving...");
     const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -349,15 +400,19 @@ async function saveLog() {
       return;
     }
 
-    setStatus("Saved. Refreshing history...");
-    await loadHistory();
-    alert("Saved!");
+    completed = true;
+    setStatus("Saved! Reloading...");
+    // Refresh page to clear file inputs and prevent accidental resubmits
+    setTimeout(() => location.reload(), 250);
+    return;
   } catch (err) {
     alert("Save failed: " + String(err));
   } finally {
-    setStatus("");
-    if (saveBtn) saveBtn.disabled = false;
-    if (refreshBtn) refreshBtn.disabled = false;
+    if (!completed) {
+      setStatus("");
+      if (saveBtn) saveBtn.disabled = false;
+      if (refreshBtn) refreshBtn.disabled = false;
+    }
   }
 }
 
